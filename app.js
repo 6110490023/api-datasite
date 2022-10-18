@@ -1,4 +1,6 @@
-const PORT = 4200
+const PORT = process.env.PORT || 3000
+const fs = require('fs');
+const path = require('path');
 const express = require('express')
 const cors = require('cors')
 const mssql = require('mssql')
@@ -6,6 +8,21 @@ const bodyParser = require('body-parser')
 const jsonParser = bodyParser.json()
 const md5 = require('md5');
 const app = express()
+const multer = require('multer');
+var storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        let des = './uploads/project/'+req.body.ProjectGuId+'/Report/'+req.body.IntReportId+"/";
+        fs.mkdir(des,{ recursive: true },(err)=>{
+            console.log(des)
+            cb(null, des);
+         });
+    },
+    filename: function (req, file, cb) {
+      cb(null, file.originalname)
+    }
+})
+var upload = multer({ storage: storage });
+
 const config = {
     user: 'integreatadba',
     password: 'zJws5b4#QgvF374eo5',
@@ -20,10 +37,13 @@ const config = {
         encrypt: true, // for azure
         trustServerCertificate: true // change to true for local dev / self-signed certs
     }
-}
+}   
 
 
 app.use(cors())
+app.get('', async function (req, res, next) {
+    res.redirect("/api")
+});
 
 app.get('/api', async function (req, res, next) {
 
@@ -42,29 +62,7 @@ app.get('/api', async function (req, res, next) {
     });
 
 });
-// app.get('/test', async function (req, res, next) {
-//     mssql.connect(config, function (err) {
-//         if (err) {
-//             console.log(err.message);
-//             return;
-//         }
-//         console.log('connection complete');
-//         let request = new mssql.Request();
-//         let query = 'select * from Members';
-//         request.query(query, function (err, result) {
-//             if (err) {
-//                 console.log(err.message);
-//                 return;
-//             }
-//             else {
-//                 console.log(result['recordset']);
-//                 res.json(result['recordset']);
-//             }
-//         });
-//     });
-// });
 
-//
 app.post('/login', jsonParser, function (req, res, next) {
     const username = req.body.username || '';
     const password = req.body.password || '';
@@ -87,50 +85,59 @@ app.post('/login', jsonParser, function (req, res, next) {
                 console.log(err.message);
                 return;
             }
-            else {
                 console.log(result['recordset']);
                 dataReturn.canLogin = result['recordset'].length === 1;
                 if (result['recordset'].length === 1) {
-                    query = 'select * from v_Project_in_Member where username=\'' + username + '\' and password=\'' + hashPassword + '\'';
-                    request.query(query, function (err, result) {
-                        if (err) {
-                            console.log(err.message);
-                            return;
-                        }
-                        else {
-                            dataReturn.project = result['recordset'];
-                            console.log(result['recordset']);
-
-                            // example data
-                            //     { "IntMemberId": 3,
-                            //     "MemberGuId": "34E4B56C-FEFD-47A0-95BB-5D9882B66326",
-                            //     "IntRoleId": 2, "IntCompanyId": 1,
-                            //     "IntPositionId": 4,
-                            //     "Username": "eknarin.120643@gmail.com",
-                            //     "Password": "81dc9bdb52d04dc20036dbd8313ed055",
-                            //     "FirstName": "nut",
-                            //     "LastName": null,
-                            //     "MemberPic": null,
-                            //     "Email": null,
-                            //     "DtCreateDate": "2022-07-16T00:28:50.120Z",
-                            //     "DtLastUpdate": "2022-07-21T21:49:39.077Z",
-                            //     "BitEnable": true,
-                            //     "RoleName": "Operator",
-                            //     "PositionName": "Foreman",
-                            //     "CompanyName": "Thailand Bim User Co., Ltd."
-                            // }
-                            res.json(dataReturn);
-                        }
-                    });
-
+                    dataReturn.IntMemberId = result['recordset'][0]['IntMemberId'];
                 } else {
-                    dataReturn.error = 'can not Login';
-                    res.json(dataReturn);
+                    dataReturn.error = 'can not Login';  
                 }
-
-
-            }
+                res.json(dataReturn);
         });
+    });
+});
+
+app.post('/projects', jsonParser, function (req, res, next) {
+    const IntMemberId = req.body.IntMemberId ;
+    console.log(IntMemberId)
+    mssql.connect(config, function (err) {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        console.log('connection complete');
+        let request = new mssql.Request();
+        //  'Select * from v_Project_in_Member WHERE IntMemberId=@IntMemberId'
+        let query = 'select * from v_Project_in_Member where IntMemberId=' +IntMemberId ;
+        let dataReturn = {};
+        request.query(query, function (err, result) {
+        if (err) {
+        console.log(err.message);
+        return;
+        }
+        dataReturn.project = result['recordset'];
+        res.json(dataReturn);
+        });
+        // console.log(result['recordset']);
+
+        // example data
+        //     { "IntMemberId": 3,
+        //     "MemberGuId": "34E4B56C-FEFD-47A0-95BB-5D9882B66326",
+        //     "IntRoleId": 2, "IntCompanyId": 1,
+        //     "IntPositionId": 4,
+        //     "Username": "eknarin.120643@gmail.com",
+        //     "Password": "81dc9bdb52d04dc20036dbd8313ed055",
+        //     "FirstName": "nut",
+        //     "LastName": null,
+        //     "MemberPic": null,
+        //     "Email": null,
+        //     "DtCreateDate": "2022-07-16T00:28:50.120Z",
+        //     "DtLastUpdate": "2022-07-21T21:49:39.077Z",
+        //     "BitEnable": true,
+        //     "RoleName": "Operator",
+        //     "PositionName": "Foreman",
+        //     "CompanyName": "Thailand Bim User Co., Ltd."
+        // }
     });
 });
 
@@ -246,7 +253,7 @@ app.post('/material-form', jsonParser, function (req, res, next) {
     });
 });
 
-app.get('/drawing-discipline', async function (req, res, next) {
+app.get('/discipline', async function (req, res, next) {
     mssql.connect(config, function (err) {
         if (err) {
             console.log(err.message);
@@ -261,8 +268,31 @@ app.get('/drawing-discipline', async function (req, res, next) {
                 return;
             }
             else {
-
                 let data = result['recordsets'][0];
+                // console.log(data);
+                res.json(data);
+            }
+        });
+    });
+});
+
+app.get('/location-type', async function (req, res, next) {
+    mssql.connect(config, function (err) {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        console.log('connection complete');
+        let request = new mssql.Request();
+        let query = 'select * from Location_Type';
+        request.query(query, function (err, result) {
+            if (err) {
+                console.log(err.message);
+                return;
+            }
+            else {
+                let data = result['recordsets'][0];
+                console.log(data);
                 res.json(data);
             }
         });
@@ -280,7 +310,7 @@ app.post('/drawing-report', jsonParser, function (req, res, next) {
         }
         console.log('connection complete');
         let request = new mssql.Request();
-        let query = 'select  * from V_Drawing where IntProjectId= ' + projectId + 'and IntDisciplineId =' + disciplineId;
+        let query = 'select  * from V_Drawing where IntProjectId= ' + projectId + 'and IntDisciplineId =' + disciplineId ;
         let data = {};
         request.query(query, function (err, result) {
             if (err) {
@@ -288,12 +318,18 @@ app.post('/drawing-report', jsonParser, function (req, res, next) {
                 return;
             }
             else {
-
-
                 data['table'] = result['recordsets'][0].map((value, index) => {
-                    return { drawingNo: value['DrawingNo'], description: value['DrawingDescription'], fileName: value['FileName'], DrawingStatusId: value['DrawingStatusId'], approveDate: value['DtApproveDate'] }
+                    return { 
+                    drawingNo: value['DrawingNo'],
+                    description: value['DrawingDescription'],
+                    fileName: value['FileName'],
+                    approveDate: value['DtApproveDate'],
+                    intFileId: value['IntRootId']+'',
+                    fileRawName: value['FileRawName'],
+                    projectGuId: value['ProjectGuId'],
+                 }
                 });
-                console.log(data);
+                // console.log(data);
                 res.json(data);
             }
 
@@ -324,12 +360,12 @@ app.post('/drawing-chart', jsonParser, function (req, res, next) {
                 data['chartBar'] = result['recordset'].map((value, index) => {
                     let date = new Date('' + value['DtCreateDate']);
                     let month = date.getMonth();
-                    return { label: month, plan: value['DrawingPlan'] + 1000, actual: value['DrawingActual'] + 900, DisciplineName: value['DisciplineName'] }
+                    return { label: month, plan: value['DrawingPlan'] , actual: value['DrawingActual'] , DisciplineName: value['DisciplineName'] }
                 });
                 data['chartLine'] = result['recordset'].map((value, index) => {
                     let date = new Date('' + value['DtCreateDate']);
                     let month = date.getMonth();
-                    return { label: month, plan: value['DrawingPlan'] + 1000, actual: value['DrawingActual'] + 900, DisciplineName: value['DisciplineName'] }
+                    return { label: month, plan: value['DrawingPlan'] , actual: value['DrawingActual'] , DisciplineName: value['DisciplineName'] }
                 });
                 // data = {
                 //     chartBar: [
@@ -444,8 +480,7 @@ app.post('/manpower-form', jsonParser, function (req, res, next) {
 
 
 app.post('/daily-report', jsonParser, function (req, res, next) {
-    const projectId = req.body.projectId;
-    const disciplineId = req.body.disciplineId;
+    const IntMemberId = req.body.IntMemberId;
     mssql.connect(config, function (err) {
         if (err) {
             console.log(err.message);
@@ -453,8 +488,8 @@ app.post('/daily-report', jsonParser, function (req, res, next) {
         }
         console.log('connection complete');
         let request = new mssql.Request();
-        let query = 'select * from Drawing where IntProjectId=' + projectId + 'and IntDecilpineId=' + disciplineId;
-        let data = [];
+        let query = 'select * from v_Daily_Report where IntMemberId=' + IntMemberId;
+        let data = {};
         request.query(query, function (err, result) {
             if (err) {
                 console.log(err.message);
@@ -464,31 +499,112 @@ app.post('/daily-report', jsonParser, function (req, res, next) {
                 // data['table'] = result['recordsets'][0].map((value, index) => {
                 //     return { 'IntCatId': value['IntCatId'], 'CategoryName': value['CategoryName'] }
                 // });
-                data = [
-                    {
-                        "drawingNo": "1234",
-                        "description": "test1",
-                        "revision": "revision",
-                        "status": "status",
-                        "appDate": "Date1234"
-                    },
-                    {
-                        "drawingNo": "1234",
-                        "description": "test1",
-                        "revision": "revision",
-                        "status": "status",
-                        "appDate": "Date1234"
-                    }
-                ]
+                data['reports'] = result['recordsets'][0];
+                console.log(data)
+                res.json(data);
             }
         });
-        res.json(data);
+        
     });
 });
 
-app.post('/daily-form', jsonParser, function (req, res, next) {
+app.post('/daily-form', jsonParser ,function (req, res, next) {
+    try{
+        IntDisciplineId = req.body.IntDisciplineId;
+        IntLocationId = req.body.IntLocationId;
+        ReportContent = req.body.ReportContent;
+        IntMemberId = req.body.IntMemberId;
+        mssql.connect(config, function (err) {
+            if (err) {
+                console.log(err.message);
+                return;
+            }
+            console.log('connection complete');
+            let request = new mssql.Request();
+            let data = [];
+            const values = [[IntDisciplineId, IntLocationId,IntMemberId,ReportContent]];
+            console.log(values);
+            let query =`INSERT INTO Report_Daily (IntDisciplineId,IntLocationId,IntMemberId,ReportContent) OUTPUT Inserted.IntReportId VALUES (${IntDisciplineId},${IntLocationId},${IntMemberId},'${ReportContent}')`
+            request.query(query, function (err, result) {
+                let data = {};
+                if (err) {
+                    console.log(err.message);
+                    res.json(data);
+                    return
+                }
+                else {
+                    data = result['recordsets'][0][0]
+                    console.log(data)
+                    res.json(data);
+                }
+            });
+        });
+    }
+    catch(e){
+        let data = {};
+        res.json(data);
+    }
+});
+
+app.post('/daily-form-update', jsonParser ,function (req, res, next) {
+    try{
+        IntReportId = req.body.IntReportId
+        IntDisciplineId = req.body.IntDisciplineId;
+        IntLocationId = req.body.IntLocationId;
+        ReportContent = req.body.ReportContent;
+        IntMemberId = req.body.IntMemberId;
+        mssql.connect(config, function (err) {
+            if (err) {
+                console.log(err.message);
+                return;
+            }
+            console.log('connection complete');
+            let request = new mssql.Request();
+            let data = [];
+            const values = [[IntDisciplineId, IntLocationId,IntMemberId,ReportContent]];
+            console.log(values);
+            let query =`UPDATE Report_Daily SET  IntDisciplineId =${IntDisciplineId},IntLocationId=${IntLocationId},IntMemberId=${IntMemberId},ReportContent='${ReportContent}' WHERE IntReportId=${IntReportId}`
+            console.log(query)
+            request.query(query, function (err, result) {
+                let data = {};
+                if (err) {
+                    console.log(err.message);
+                    res.json(data);
+                    return
+                }
+                else {
+                    data = {'IntReportId':IntReportId}
+                    res.json(data);
+                }
+            });
+        });
+    }
+    catch(e){
+        let data = {'IntReportId':IntReportId};
+        res.json(data);
+    }
+});
+
+
+app.post('/daily-form-images', upload.array("files"),function (req, res, next) {
+    try{
+        const ProjectGuId = req.body.ProjectGuId;
+        const files = req.files;
+        const IntReportId = req.body.IntReportId;
+        console.log(ProjectGuId);
+        console.log(IntReportId);
+        console.log(files);
+        let data = {};
+        res.json(data);
+    }
+    catch(e){
+        let data = {};
+        res.json(data);
+    }
+});
+
+app.post('/location-name', jsonParser, function (req, res, next) {
     const projectId = req.body.projectId;
-    const disciplineId = req.body.disciplineId;
     mssql.connect(config, function (err) {
         if (err) {
             console.log(err.message);
@@ -496,44 +612,30 @@ app.post('/daily-form', jsonParser, function (req, res, next) {
         }
         console.log('connection complete');
         let request = new mssql.Request();
-        let query = 'select * from Drawing where IntProjectId=' + projectId + 'and IntDecilpineId=' + disciplineId;
-        let data = [];
+        console.log(projectId )
+        let query = 'select IntLocationId,IntLocationTypeId,LocationName from Project_Location where IntProjectId= ' + projectId;
+        let data = {};
         request.query(query, function (err, result) {
             if (err) {
                 console.log(err.message);
                 return;
             }
             else {
-                // data['table'] = result['recordsets'][0].map((value, index) => {
-                //     return { 'IntCatId': value['IntCatId'], 'CategoryName': value['CategoryName'] }
-                // });
-                data = [
-                    {
-                        "drawingNo": "1234",
-                        "description": "test1",
-                        "revision": "revision",
-                        "status": "status",
-                        "appDate": "Date1234"
-                    },
-                    {
-                        "drawingNo": "1234",
-                        "description": "test1",
-                        "revision": "revision",
-                        "status": "status",
-                        "appDate": "Date1234"
-                    }
-                ]
+                data['locations'] = result['recordsets'][0];
+                console.log(data);
+                res.json(data);
             }
+
         });
-        res.json(data);
+
     });
 });
+
+
+
 
 app.listen(PORT, function () {
     var os = require('os');
     var networkInterfaces = os.networkInterfaces();
-    console.log("http://" + networkInterfaces['Wi-Fi'][3
-
-]['address'] + ":" + PORT);
     // console.log('CORS-enabled web server listening on port' + PORT)
 })
