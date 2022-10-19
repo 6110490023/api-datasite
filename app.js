@@ -341,6 +341,7 @@ app.post('/drawing-report', jsonParser, function (req, res, next) {
 app.post('/drawing-chart', jsonParser, function (req, res, next) {
     const projectId = req.body.projectId;
     const disciplineId = req.body.disciplineId;
+    const year = req.body.year;
     console.log(req.body)
     mssql.connect(config, function (err) {
         if (err) {
@@ -351,21 +352,44 @@ app.post('/drawing-chart', jsonParser, function (req, res, next) {
         let request = new mssql.Request();
         let query = 'select  * from V_Drawing_Report where IntProjectId= ' + projectId + 'and IntDisciplineId =' + disciplineId;
         let data = {};
+    
         request.query(query, function (err, result) {
             if (err) {
                 console.log(err.message);
                 return;
             }
             else {
-                data['chartBar'] = result['recordset'].map((value, index) => {
+                let year1 = year;
+                let listYear =[]
+                if (year1 ==''){
+                    result['recordset'].forEach((value, index) => {
+                        let date = new Date('' + value['DtCreateDate']);
+                        if( year1 !== date.getFullYear().toString()){
+                            listYear.push(date.getFullYear().toString());
+                            year1 = date.getFullYear().toString()
+                        }
+                    });
+                    year1 = listYear[0]
+                }
+                console.log(year1)
+                data['listYear'] = listYear;
+                data['chartBar'] = []
+                result['recordset'].forEach((value, index) => {
                     let date = new Date('' + value['DtCreateDate']);
-                    let month = date.getMonth();
-                    return { label: month, plan: value['DrawingPlan'] , actual: value['DrawingActual'] , DisciplineName: value['DisciplineName'] }
+                    if (date.getFullYear().toString() === year1){
+                        let month = date.getMonth();
+                        data['chartBar'].push({ label: month, plan: value['DrawingPlan'] , actual: value['DrawingActual'] , DisciplineName: value['DisciplineName'] })
+                    }
                 });
-                data['chartLine'] = result['recordset'].map((value, index) => {
+                data['chartLine'] = []
+                result['recordset'].forEach((value, index) => {
                     let date = new Date('' + value['DtCreateDate']);
-                    let month = date.getMonth();
-                    return { label: month, plan: value['DrawingPlan'] , actual: value['DrawingActual'] , DisciplineName: value['DisciplineName'] }
+                    if (date.getFullYear().toString() === year1){
+                        let month = date.getMonth();
+                        data['chartLine'].push({ label: month, plan: value['DrawingPlan'] , actual: value['DrawingActual'] , DisciplineName: value['DisciplineName'] })
+                    }
+                   
+                    
                 });
                 // data = {
                 //     chartBar: [
@@ -385,6 +409,7 @@ app.post('/drawing-chart', jsonParser, function (req, res, next) {
                 //         },
                 //     ]
                 // }
+                console.log(data)
                 res.json(data);
 
             }
@@ -634,8 +659,10 @@ app.post('/location-name', jsonParser, function (req, res, next) {
 
 
 
+
 app.listen(PORT, function () {
     var os = require('os');
     var networkInterfaces = os.networkInterfaces();
+    console.log("http://"+networkInterfaces['Wi-Fi'][3]['address']+':'+PORT)
     // console.log('CORS-enabled web server listening on port' + PORT)
 })
